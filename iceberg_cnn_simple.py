@@ -39,8 +39,7 @@ def get_model_only_CNN():
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.33))
     model.add(Dense(1, activation="sigmoid"))
-    optimizer = Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
-    #optimizer = 'adadelta'
+    optimizer = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.1)
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
     return model
@@ -116,7 +115,7 @@ Xtrain = np.concatenate([x_band1[:, :, :, np.newaxis], x_band2[:, :, :, np.newax
 
 Xtest = np.concatenate([t_band1[:, :, :, np.newaxis], t_band2[:, :, :, np.newaxis]], axis=-1)#, t_band3[:, :, :, np.newaxis]], axis=-1)
 
-batch_size = 16
+batch_size = 64
 
 #print(df_train['band_1'][1])
 
@@ -127,8 +126,8 @@ batch_size = 16
 model = get_model_only_CNN()
 model.summary()
 
-earlyStopping = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min')
-mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True)
+earlyStopping = EarlyStopping(monitor='val_loss', patience=25, verbose=0, mode='min')
+mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 
 model.fit(Xtrain, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.25)
 
