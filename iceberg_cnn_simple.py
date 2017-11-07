@@ -132,7 +132,7 @@ mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True)
 
 model.fit(Xtrain, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.25)
 
-model.load_weights(filepath = '.model_weights.hdf5')
+model.load_weights(filepath = '.mdl_wts.hdf5')
 
 score = model.evaluate(Xtrain, Ytrain, verbose=2)
 print('Train score:', score[0])
@@ -142,7 +142,6 @@ pred = model.predict(Xtest, verbose=1, batch_size=200)
 
 submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': pred.reshape((pred.shape[0]))})
 print(submission.head(10))
-print(submission.tail(10))
 
 submission.to_csv(INPUT_PATH + 'submission.csv', index=False)
 ### ----
