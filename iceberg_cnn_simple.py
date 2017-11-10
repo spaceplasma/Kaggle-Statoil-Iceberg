@@ -179,36 +179,36 @@ for i in range(0,len(ytest)-1):
 
 XtrainAll = np.concatenate([xtrHH_band[:, :, :, np.newaxis], xtrHV_band[:, :, :, np.newaxis], xtrComb_band[:, :, :, np.newaxis]], axis=-1)
 XtrainComb = np.concatenate([xtrHV_band[:, :, :, np.newaxis], xtrComb_band[:, :, :, np.newaxis]], axis=-1)
-XtrainHH = xtrHH_band
+XtrainHH = xtrHH_band[:, :, :, np.newaxis]
 
 XtestAll = np.concatenate([teHH_band[:, :, :, np.newaxis], teHV_band[:, :, :, np.newaxis], teComb_band[:, :, :, np.newaxis]], axis=-1)
 XtestComb = np.concatenate([teHV_band[:, :, :, np.newaxis], teComb_band[:, :, :, np.newaxis]], axis=-1)
-XtestHH = teHH_band
+XtestHH = teHH_band[:, :, :, np.newaxis]
 
 batch_size = 32
 
 ### ----
 
-model = get_model_all_CNN()
+model = get_model_only_HH_CNN()
 model.summary()
 
 earlyStopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
 mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 
-model.fit(XtrainAll, Ytrain, batch_size=batch_size, epochs=50, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.2)
+model.fit(XtrainHH, Ytrain, batch_size=batch_size, epochs=50, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.2)
 
 model.load_weights(filepath = '.mdl_wts.hdf5')
 
-score = model.evaluate(XtrainAll, Ytrain, verbose=2)
+score = model.evaluate(XtrainHH, Ytrain, verbose=2)
 print('Train score:', score[0])
 print('Train accuracy:', score[1])
 
-pred = model.predict(XtestAll, verbose=1, batch_size=200)
+pred = model.predict(XtestHH, verbose=1, batch_size=200)
 
 submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': pred.reshape((pred.shape[0]))})
 print(submission.head(10))
 
-submission.to_csv(INPUT_PATH + 'submission.csv', index=False)
+submission.to_csv(INPUT_PATH + 'submission_HH.csv', index=False)
 ### ----
 
 
