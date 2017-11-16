@@ -8,7 +8,7 @@ Created on Fri Nov  3 10:16:00 2017
 import json
 import pandas as pd 
 import numpy as np 
-#np.random.seed(666)
+np.random.seed(1337)
 
 #import keras
 from keras.models import Sequential
@@ -27,18 +27,18 @@ def get_model_only_HH_CNN():
     ## Build model
     model = Sequential()
     #model.add(BatchNormalization(axis=-1, input_shape=(75,75,3)))
-    model.add(Conv2D(16, (7,7), input_shape=(75,75,1), activation="relu", padding="valid"))
+    model.add(Conv2D(16, (5,5), input_shape=(75,75,1), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
     model.add(Conv2D(16, (5,5), activation="relu", padding="valid"))
     model.add(MaxPooling2D(2,2))
     model.add(Dropout(0.2))
-    model.add(Conv2D(32, (5,5), activation="relu", padding="valid"))
+    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
-    model.add(Conv2D(64, (3,3), activation="relu", padding="valid"))
+    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
     model.add(Flatten())
     model.add(BatchNormalization(axis=-1))
-    model.add(Dense(512, activation='relu'))
+    model.add(Dense(256, activation='relu'))
     model.add(Dropout(0.3))
     model.add(Dense(1, activation="sigmoid"))
     optimizer = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.1)
@@ -71,32 +71,23 @@ def get_model_only_HH_CNN():
 
 def get_model_Comb_CNN():
     ## Build model
+    ## Build model
     model = Sequential()
+    #model.add(BatchNormalization(axis=-1, input_shape=(75,75,3)))
     model.add(Conv2D(16, (5,5), input_shape=(75,75,2), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
-    model.add(BatchNormalization(axis=-1))
-    
-    model.add(Conv2D(16, (5,5), activation="elu", padding="valid"))
+    model.add(Conv2D(16, (5,5), activation="relu", padding="valid"))
     model.add(MaxPooling2D(2,2))
     model.add(Dropout(0.2))
-   
-    model.add(Conv2D(32, (3,3), activation="elu", padding="valid"))
-    model.add(MaxPooling2D(2,2))
+    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
-
-    model.add(Conv2D(64, (3,3), activation="elu", padding="valid"))
+    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
-    model.add(BatchNormalization(axis=-1))
- 
     model.add(Flatten())
-    model.add(Dense(256, activation='elu'))
-    model.add(Dropout(0.2))
-    
-    model.add(Dense(128, activation='elu'))
-    model.add(Dropout(0.4))
-
+    model.add(BatchNormalization(axis=-1))
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.3))
     model.add(Dense(1, activation="sigmoid"))
-
     optimizer = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.1)
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
@@ -236,7 +227,7 @@ print(predHH_train.reshape(predHH_train.shape[0]))
 model = get_model_Comb_CNN()
 model.summary()
 
-earlyStopping = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min')
+earlyStopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
 mcp_save = ModelCheckpoint('.mdl_wtsC.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 tensorboard = TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=False)
 model.fit(XtrainComb, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save,tensorboard], validation_split=0.25)
