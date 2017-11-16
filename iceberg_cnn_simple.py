@@ -14,7 +14,7 @@ import numpy as np
 from keras.models import Sequential
 from keras.layers import Dense, Dropout, Flatten#, Activation, Input
 from keras.layers import Conv2D, MaxPooling2D
-from keras.callbacks import EarlyStopping, ModelCheckpoint
+from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard
 from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
 #from keras.utils import np_utils
@@ -74,19 +74,29 @@ def get_model_Comb_CNN():
     model = Sequential()
     model.add(Conv2D(16, (5,5), input_shape=(75,75,2), activation="relu", padding="valid"))
     model.add(Dropout(0.2))
-    model.add(Conv2D(16, (5,5), activation="relu", padding="valid"))
+    model.add(BatchNormalization(axis=-1))
+    
+    model.add(Conv2D(16, (5,5), activation="elu", padding="valid"))
     model.add(MaxPooling2D(2,2))
     model.add(Dropout(0.2))
-    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
+   
+    model.add(Conv2D(32, (3,3), activation="elu", padding="valid"))
+    model.add(MaxPooling2D(2,2))
     model.add(Dropout(0.2))
-    model.add(Conv2D(32, (3,3), activation="relu", padding="valid"))
+
+    model.add(Conv2D(64, (3,3), activation="elu", padding="valid"))
     model.add(Dropout(0.2))
-    model.add(Flatten())
     model.add(BatchNormalization(axis=-1))
-#    model.add(Dense(512, activation='relu'))
-    model.add(Dense(128, activation='relu'))
-    model.add(Dropout(0.3))
+ 
+    model.add(Flatten())
+    model.add(Dense(256, activation='elu'))
+    model.add(Dropout(0.2))
+    
+    model.add(Dense(128, activation='elu'))
+    model.add(Dropout(0.4))
+
     model.add(Dense(1, activation="sigmoid"))
+
     optimizer = Adam(lr=0.002, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.1)
     model.compile(loss='binary_crossentropy', optimizer=optimizer, metrics=['accuracy'])
 
@@ -187,7 +197,7 @@ for i in range(0,len(ytest)-1):
     mean_band = np.mean(teComb_band[i,:,:])
     max_band = np.max(teComb_band[i,:,:])
     min_band = np.min(teComb_band[i,:,:])
-    teHV_band[i,:,:] = (teComb_band[i,:,:]-mean_band)/(max_band-min_band)
+    teComb_band[i,:,:] = (teComb_band[i,:,:]-mean_band)/(max_band-min_band)
     
 XtrainAll = np.concatenate([xtrHH_band[:, :, :, np.newaxis], xtrHV_band[:, :, :, np.newaxis], xtrComb_band[:, :, :, np.newaxis]], axis=-1)
 XtrainComb = np.concatenate([xtrHV_band[:, :, :, np.newaxis], xtrComb_band[:, :, :, np.newaxis]], axis=-1)
@@ -205,20 +215,20 @@ model = get_model_only_HH_CNN()
 model.summary()
 
 earlyStopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
-mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
+mcp_save = ModelCheckpoint('.mdl_wtsH.hdf5', save_best_only=True, monitor='val_loss', mode='min')
 
 model.fit(XtrainHH, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.2)
 
-model.load_weights(filepath = '.mdl_wts.hdf5')
+model.load_weights(filepath = '.mdl_wtsH.hdf5')
 
 score = model.evaluate(XtrainHH, Ytrain, verbose=2)
 print('Train score:', score[0])
 print('Train accuracy:', score[1])
 
-predHH_test = model.predict(XtestHH, verbose=1, batch_size=200)
+predHH_test = model.predict(XtestHH, verbose=1, batch_size=256)
 print(predHH_test.reshape(predHH_test.shape[0]))
 
-predHH_train = model.predict(XtrainHH, verbose=1, batch_size=200)
+predHH_train = model.predict(XtrainHH, verbose=1, batch_size=256)
 print(predHH_train.reshape(predHH_train.shape[0]))
 
 ### ----
@@ -226,12 +236,12 @@ print(predHH_train.reshape(predHH_train.shape[0]))
 model = get_model_Comb_CNN()
 model.summary()
 
-earlyStopping = EarlyStopping(monitor='val_loss', patience=15, verbose=0, mode='min')
-mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
+earlyStopping = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min')
+mcp_save = ModelCheckpoint('.mdl_wtsC.hdf5', save_best_only=True, monitor='val_loss', mode='min')
+tensorboard = TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=False)
+model.fit(XtrainComb, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save,tensorboard], validation_split=0.25)
 
-model.fit(XtrainComb, Ytrain, batch_size=batch_size, epochs=100, verbose=1, callbacks=[earlyStopping, mcp_save], validation_split=0.2)
-
-model.load_weights(filepath = '.mdl_wts.hdf5')
+model.load_weights(filepath = '.mdl_wtsC.hdf5')
 
 score = model.evaluate(XtrainComb, Ytrain, verbose=2)
 print('Train score:', score[0])
@@ -244,10 +254,10 @@ predC_train = model.predict(XtrainComb, verbose=1, batch_size=256)
 print(predC_train.reshape(predC_train.shape[0]))
 
 
-trRF = np.hstack((predC_train, x_inc_ang[:,np.newaxis]))
-trRF = np.hstack((predHH_train,trRF))
-testRF = np.hstack((predC_test, t_inc_ang[:,np.newaxis]))
-testRF = np.hstack((predHH_test,testRF))
+trRF = np.hstack((predHH_train, x_inc_ang[:,np.newaxis]))
+#trRF = np.hstack((predC_train,trRF))
+testRF = np.hstack((predHH_test, t_inc_ang[:,np.newaxis]))
+#testRF = np.hstack((predC_test,testRF))
 #
 trained_RF = random_forest_classifier(trRF,Ytrain)
 print(trained_RF)
@@ -257,7 +267,7 @@ submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predRF.reshape((pr
 #submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predNN_test.reshape((predNN_test.shape[0]))})
 print(submission.head(10))
 
-#submission.to_csv(INPUT_PATH + 'submission_HH.csv', index=False)
+submission.to_csv(INPUT_PATH + 'submission_HH.csv', index=False)
 ### ----
 
 
