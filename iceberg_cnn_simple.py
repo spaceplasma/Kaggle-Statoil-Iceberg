@@ -20,6 +20,7 @@ from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
 #from keras.utils import np_utils
 #from sklearn.ensemble import RandomForestClassifier
+from scipy import stats
 
 
 INPUT_PATH='C:\\Users\\bryacha\\projects\\Kaggle\\Iceberg\\data\\processed\\' 
@@ -135,7 +136,12 @@ def get_scaled_imgs(df):
         a = (band_1 - band_1.mean()) / (band_1.max() - band_1.min())
         b = (band_2 - band_2.mean()) / (band_2.max() - band_2.min())
         c = (band_3 - band_3.mean()) / (band_3.max() - band_3.min())
+ 
+#        a = stats.zscore(band_1)
+#        b = stats.zscore(band_2)
+#        c = stats.zscore(band_3)
         
+       
 #        R0 = get_R(band_1,band_2,band_3)
 #        
 #        R.append(R0)
@@ -243,6 +249,8 @@ idx_tr = np.where(df_train.inc_angle>0)
 Ytrain = np.array(df_train['is_iceberg'])
 Xtrain = get_scaled_imgs(df_train)
 
+# should we implement a denoising AE?
+
 #train_t = get_scaled_imgs(df_train)
 #Xtrain = train_t[0]
 #R_train = train_t[1]
@@ -278,17 +286,12 @@ score = model.evaluate(Xtrain[:,:,:,0:], Ytrain, verbose=2)
 print('Train score:', score[0])
 print('Train accuracy:', score[1])
 
-print('Fetching Test Data...')
-#with open(INPUT_PATH + 'test.json') as datafile:
-#    data = json.load(datafile)
-    
+print('Fetching Test Data...')  
 df_test = pd.read_json(INPUT_PATH + 'test.json')
     
-#df_test = pd.DataFrame(data)
+
 df_test.inc_angle = df_test.inc_angle.replace('na',0)
 Xtest = (get_scaled_imgs(df_test))
-#Xtest = test_t[0]
-#R_test = test_t[1]
 
 predA_train = model.predict(Xtrain[:,:,:,0:])
 print(predA_train.reshape(predA_train.shape[0]))
@@ -296,26 +299,37 @@ print(predA_train.reshape(predA_train.shape[0]))
 predA_test = model.predict(Xtest[:,:,:,0:])
 print(predA_test.reshape(predA_test.shape[0]))
 
-#set predicted values where inc_angle is 0 to 0 (not iceberg)
-#inc_angle_train = np.array(df_train['inc_angle'])
-#idx_test = np.where(inc_angle_train==0)
-#predA_test[idx_test[0]] = 0
-
-#trRF = np.hstack((predHH_train, x_inc_ang[:,np.newaxis]))
-##trRF = np.hstack((predC_train,trRF))
-#testRF = np.hstack((predHH_test, t_inc_ang[:,np.newaxis]))
-#testRF = np.hstack((predC_test,testRF))
-
-#Tune the RF
-#trained_RF = random_forest_classifier(trRF,Ytrain)
-#print(trained_RF)
-#predRF = trained_RF.predict(testRF)
-##
-#submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predRF.reshape((predRF.shape[0]))})
 submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predA_test.reshape((predA_test.shape[0]))})
 print(submission.head(10))
 
-submission.to_csv(INPUT_PATH + '20171123_submission_4.csv', index=False)
+submission.to_csv(INPUT_PATH + '20171124_submission_2.csv', index=False)
 ### ----
+
+### ---
+# Okay, we have some predictions, they aren't bad. Can we do better by using some pseudo-labelling?
+
+idx_pred_1 = (np.where(predA_test[:,0]>0.95))
+idx_pred_0 = (np.where(predA_test[:,0]<0.05))
+
+Xtrain_pl = np.concatenate((Xtrain,Xtest[idx_pred_1[0],...],Xtest[idx_pred_0[0],...]))
+Ytrain_pl = np.concatenate((Ytrain,np.ones(idx_pred_1[0].shape[0]),np.zeros(idx_pred_0[0].shape[0])))
+
+model = getModel_FCN()
+model.fit(Xtrain_pl, Ytrain_pl, batch_size=batch_size, epochs=50, verbose=1, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_split=0.25)
+
+model.load_weights(filepath = '.mdl_wtsFCN.hdf5')
+
+score = model.evaluate(Xtrain_pl, Ytrain_pl, verbose=2)
+print('Train score:', score[0])
+print('Train accuracy:', score[1])
+
+predA_test = model.predict(Xtest)
+print(predA_test.reshape(predA_test.shape[0]))
+
+submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predA_test.reshape((predA_test.shape[0]))})
+print(submission.head(10))
+
+submission.to_csv(INPUT_PATH + '20171124_submission_2_pl.csv', index=False)
+
 
 
