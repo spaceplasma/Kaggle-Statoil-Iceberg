@@ -167,6 +167,7 @@ idx_test = np.where(df_test.inc_angle>0)
 Xtest0 = Xtest[idx_test[0],...]
 
 sss = StratifiedShuffleSplit(n_splits=5,test_size=0.2)
+i=0
 
 for train_index, cv_index in sss.split(Xtrain, Ytrain):
 
@@ -184,30 +185,40 @@ for train_index, cv_index in sss.split(Xtrain, Ytrain):
     batch_size = 32
     
     model = getModel(Xtr_more.shape[1:])
-    model.summary()
+    #model.summary()
     
     earlyStopping = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min')
     mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
     tensorboard = TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=False)
     reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=5, verbose=1, epsilon=1e-4, mode='min')
-    model.fit(Xtr_more[:,:,:,0:], Ytr_more, batch_size=batch_size, epochs=30, verbose=1, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_data=(Xcv_more,Ycv_more))
+    model.fit(Xtr_more, Ytr_more, batch_size=batch_size, epochs=30, verbose=0, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_data=(Xcv_more,Ycv_more))
     
     model.load_weights(filepath = '.mdl_wts.hdf5')
     
     score = model.evaluate(Xcv_more, Ycv_more, verbose=2)
+    print('Pass:',i+1)
     print('CV loss:', score[0])
     print('CV accuracy:', score[1])
 
     pt = model.predict(Xcv_more)
     mse = (np.mean((pt-Ycv_more)**2))
     print('CV MSE: ', mse)
+
+    score = model.evaluate(Xtrain, Ytrain, verbose=2)
+    print('Train loss:', score[0])
+    print('Train accuracy:', score[1])
+
+    pt = model.predict(Xtrain)
+    mse = (np.mean((pt-Ytrain)**2))
+    print('Train MSE: ', mse)
+
     
     predA_test = model.predict(Xtest)    
 
     submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predA_test.reshape((predA_test.shape[0]))})
-    print(submission.head(10))
+    #print(submission.head(10))
     
-    submission.to_csv(INPUT_PATH + '20171213_'+str(score[0])+'_'+str(score[1])+'.csv', index=False)
+    submission.to_csv(INPUT_PATH + '20171214_'+str(score[0])+'_'+str(score[1])+'.csv', index=False)
 
 
 
