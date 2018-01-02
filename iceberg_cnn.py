@@ -303,7 +303,8 @@ for train_index, cv_index in sss.split(Xtrain, Ytrain):
     print('MSE: ',mse)
     rd_pt = np.around(pt)
     CM = get_confusion(rd_pt,Ytrain)
-    print('Confusion Matrix: ',CM)
+    print('Confusion Matrix: ',CM[0],CM[1])
+    fscore = 2*(CM[2][0]*CM[2][1])/(CM[2][0]+CM[2][1])
 
     predA_test = model.predict(Xtest)
 
@@ -313,7 +314,7 @@ for train_index, cv_index in sss.split(Xtrain, Ytrain):
     submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predA_test.reshape((predA_test.shape[0]))})
     print(submission.head(10))
     
-    submission.to_csv(INPUT_PATH + '20180102_'+str(score[0])+'_'+str(score[1])+'_'+str('fscore')+'.csv', index=False)
+    submission.to_csv(INPUT_PATH + '20180102_'+str(score[0])+'_'+str(score[1])+'_'+str(fscore)+'.csv', index=False)
 
     break
 
