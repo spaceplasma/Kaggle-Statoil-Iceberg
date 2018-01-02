@@ -16,13 +16,13 @@ from keras.models import Sequential, Model
 from keras.layers import Dense, Dropout, Flatten, Lambda, Activation, Input
 from keras.layers import Conv2D, MaxPooling2D, ZeroPadding2D, UpSampling2D#, GlobalAveragePooling2D
 from keras.callbacks import EarlyStopping, ModelCheckpoint, TensorBoard, ReduceLROnPlateau
-#from keras.layers.normalization import BatchNormalization
+from keras.layers.normalization import BatchNormalization
 from keras.optimizers import Adam
 #from keras.utils import np_utils
 #from sklearn.ensemble import RandomForestClassifier
 #from scipy import stats
 #from sklearn.model_selection import train_test_split
-from sklearn.model_selection import StratifiedShuffleSplit
+from sklearn.model_selection import StratifiedShuffleSplit, KFold
 
 from scipy.ndimage.filters import uniform_filter
 from scipy.ndimage.measurements import variance
@@ -52,23 +52,29 @@ def getModel(shp):
     
     #Conv Layer 1
     model.add(Conv2D(64, kernel_size=(3, 3),activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Dropout(0.5))
+#    model.add(Conv2D(32, kernel_size=(3, 3),activation='relu'))
+#    model.add(Conv2D(32, kernel_size=(3, 3),activation='relu'))
+#    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
 
     #Conv Layer 2
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
-    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Dropout(0.5))
+#    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+#    model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))
+#    model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
+    model.add(MaxPooling2D(pool_size=(2, 2)))
+    model.add(Dropout(0.4))
 
     #Conv Layer 3
     model.add(Conv2D(128, kernel_size=(3, 3), activation='relu'))
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.2))
 
     #Conv Layer 4
     model.add(Conv2D(64, kernel_size=(3, 3), activation='relu'))   
     model.add(MaxPooling2D(pool_size=(2, 2), strides=(2, 2)))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.2))
     
     #Flatten the data for upcoming dense layers
     model.add(Flatten())
@@ -76,20 +82,20 @@ def getModel(shp):
     #Dense Layers
     model.add(Dense(512))
     model.add(Activation('relu'))
-    model.add(Dropout(0.5))
-    #model.add(BatchNormalization())
+    model.add(Dropout(0.4))
+#    model.add(BatchNormalization())
 
     #Dense Layer 2
     model.add(Dense(256))
     model.add(Activation('relu'))
-    model.add(Dropout(0.5))
+    model.add(Dropout(0.2))
     #model.add(BatchNormalization())
 
     #Sigmoid Layer
     model.add(Dense(1))
     model.add(Activation('sigmoid'))
 
-    mypotim=Adam(lr=0.0005, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
+    mypotim=Adam(lr=0.001, beta_1=0.9, beta_2=0.999, epsilon=1e-08, decay=0.0)
     model.compile(loss='binary_crossentropy',
                   optimizer=mypotim,
                   metrics=['accuracy'])
@@ -126,6 +132,7 @@ def get_augment(imgs):
     imgs.shape[0]
     
     for i in range(0,imgs.shape[0]):
+#        a = imgs[i,:,:]
         a=imgs[i,:,:,0]
         b=imgs[i,:,:,1]
         c=imgs[i,:,:,2]
@@ -136,6 +143,9 @@ def get_augment(imgs):
         bh=cv2.flip(b,0)
         cv=cv2.flip(c,1)
         ch=cv2.flip(c,0)
+
+#        vert_flip_imgs.append(av)
+#        hori_flip_imgs.append(ah)
         
         vert_flip_imgs.append(np.dstack((av, bv, cv)))
         hori_flip_imgs.append(np.dstack((ah, bh, ch)))
@@ -146,6 +156,28 @@ def get_augment(imgs):
     more_images = np.concatenate((imgs,v,h))
     
     return more_images
+
+def get_confusion(pred_v,real_v):
+    
+    pp = np.where(pred_v == 1)[0]
+    pn = np.where(pred_v == 0)[0]
+    rp = np.where(real_v == 1)[0]
+    rn = np.where(real_v == 0)[0]
+    
+    tpr = len(np.intersect1d(pp,rp))
+    fpr = len(np.intersect1d(pp,rn))
+    tnr = len(np.intersect1d(pn,rn))
+    fnr = len(np.intersect1d(pn,rp))
+    print(tpr,fpr,tnr,fnr)
+    prec = tpr/len(pp)
+    recl = tpr/len(rp)
+    print('Precision: ',prec)
+    print('Recall: ',recl)
+    print('F-score: ',2*(prec*recl)/(prec+recl))
+    
+    CM = [[tpr,fpr],[fnr,tnr],[prec,recl]]
+    
+    return CM
 
 # Read the json files into a pandas dataframe
 print('Fetching Training Data...')
@@ -158,18 +190,20 @@ df_train.inc_angle = df_train.inc_angle.replace('na',0)
 idx_tr = np.where(df_train.inc_angle>0)
 Ytrain = np.array(df_train['is_iceberg'])
 Xtrain = get_scaled_imgs(df_train)
-Ytrain = Ytrain[idx_tr[0]]
-Xtrain = Xtrain[idx_tr[0],...]
+#Ytrain = Ytrain[idx_tr[0]]
+#Xtrain = Xtrain[idx_tr[0],...]
 
 df_test.inc_angle = df_test.inc_angle.replace('na',0)
 Xtest = (get_scaled_imgs(df_test))
-idx_test = np.where(df_test.inc_angle>0)
-Xtest0 = Xtest[idx_test[0],...]
+#idx_test = np.where(df_test.inc_angle>0)
+#Xtest0 = Xtest[idx_test[0],...]
 
 sss = StratifiedShuffleSplit(n_splits=5,test_size=0.2)
 i=0
 
 for train_index, cv_index in sss.split(Xtrain, Ytrain):
+    
+    i += 1
 
     X_train, X_cv = Xtrain[train_index], Xtrain[cv_index]
     y_train, y_cv = Ytrain[train_index], Ytrain[cv_index]
@@ -191,12 +225,12 @@ for train_index, cv_index in sss.split(Xtrain, Ytrain):
     mcp_save = ModelCheckpoint('.mdl_wts.hdf5', save_best_only=True, monitor='val_loss', mode='min')
     tensorboard = TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=False)
     reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=5, verbose=1, epsilon=1e-4, mode='min')
-    model.fit(Xtr_more, Ytr_more, batch_size=batch_size, epochs=30, verbose=0, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_data=(Xcv_more,Ycv_more))
+    history = model.fit(Xtr_more, Ytr_more, batch_size=batch_size, epochs=30, verbose=0, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_data=(Xcv_more,Ycv_more))
     
     model.load_weights(filepath = '.mdl_wts.hdf5')
     
     score = model.evaluate(Xcv_more, Ycv_more, verbose=2)
-    print('Pass:',i+1)
+    print('Pass:',i)
     print('CV loss:', score[0])
     print('CV accuracy:', score[1])
 
@@ -211,15 +245,78 @@ for train_index, cv_index in sss.split(Xtrain, Ytrain):
     pt = model.predict(Xtrain)
     mse = (np.mean((pt-Ytrain)**2))
     print('Train MSE: ', mse)
+ 
+    pred_pl_test = model.predict(Xtest)    
 
+    idx_pred_1 = (np.where(pred_pl_test[:,0]>(0.75)))
+    idx_pred_0 = (np.where(pred_pl_test[:,0]<(0.25)))
     
-    predA_test = model.predict(Xtest)    
+    Xtrain_pl = np.concatenate((Xtrain,Xtest[idx_pred_1[0],...],Xtest[idx_pred_0[0],...]))
+    Ytrain_pl = np.concatenate((Ytrain,np.ones(idx_pred_1[0].shape[0]),np.zeros(idx_pred_0[0].shape[0])))
+#    Xtrain_pl = np.concatenate((Xtrain,Xtest))
+#    Ytrain_pl = np.concatenate((Ytrain,pred_pl_test.reshape(pred_pl_test.shape[0])))
+
+    pl_kf = KFold(n_splits=5, shuffle=True)
+
+    for train_pl_index, cv_pl_index in pl_kf.split(Xtrain_pl, Ytrain_pl):
+        Xtrain_pl, Xpl_cv = Xtrain_pl[train_pl_index], Xtrain_pl[cv_pl_index]
+        Ytrain_pl, Ypl_cv = Ytrain_pl[train_pl_index], Ytrain_pl[cv_pl_index]
+        break
+       
+    model = getModel(Xtrain_pl.shape[1:])
+    
+    earlyStopping = EarlyStopping(monitor='val_loss', patience=10, verbose=0, mode='min')
+    mcp_save = ModelCheckpoint('.mdl_wtsPL.hdf5', save_best_only=True, monitor='val_loss', mode='min')
+    tensorboard = TensorBoard(log_dir='../logs', histogram_freq=0, write_graph=True, write_images=False)
+    reduce_lr_loss = ReduceLROnPlateau(monitor='val_loss', factor=0.05, patience=5, verbose=1, epsilon=1e-4, mode='min')
+    history_pl = model.fit(Xtrain_pl, Ytrain_pl, batch_size=batch_size, epochs=30, verbose=0, callbacks=[earlyStopping, mcp_save,tensorboard,reduce_lr_loss], validation_data=(Xpl_cv,Ypl_cv))
+    
+    model.load_weights(filepath = '.mdl_wtsPL.hdf5')
+    
+    scorePLCV = model.evaluate(Xpl_cv, Ypl_cv, verbose=0)
+    print('Train PL CV score:', scorePLCV[0])
+    print('Train PL CV accuracy:', scorePLCV[1])
+    pt = model.predict(Xpl_cv)
+    mse = (np.mean((pt-Ypl_cv)**2))
+    print('MSE: ',mse)
+ 
+    score = model.evaluate(Xtrain_pl, Ytrain_pl, verbose=0)
+    print('Train PL score:', score[0])
+    print('Train PL accuracy:', score[1])
+    pt = model.predict(Xtrain_pl)
+    mse = (np.mean((pt-Ytrain_pl)**2))
+    print('MSE: ',mse)
+    
+
+    score = model.evaluate(X_cv, y_cv, verbose=0)
+    print('X_cv score:', score[0])
+    print('X_cv accuracy:', score[1])
+    pt = model.predict(X_cv)
+    mse = (np.mean((pt-y_cv)**2))
+    print('MSE: ',mse)
+    
+    score = model.evaluate(Xtrain, Ytrain, verbose=0)
+    print('Train score:', score[0])
+    print('Train accuracy:', score[1])
+    pt = model.predict(Xtrain)
+    mse = (np.mean((pt-Ytrain)**2))
+    print('MSE: ',mse)
+    rd_pt = np.around(pt)
+    CM = get_confusion(rd_pt,Ytrain)
+    print('Confusion Matrix: ',CM)
+
+    predA_test = model.predict(Xtest)
+
+    #Round Pred data
+    rd_predA_test = np.around(predA_test)
 
     submission = pd.DataFrame({'id': df_test["id"], 'is_iceberg': predA_test.reshape((predA_test.shape[0]))})
-    #print(submission.head(10))
+    print(submission.head(10))
     
-    submission.to_csv(INPUT_PATH + '20171214_'+str(score[0])+'_'+str(score[1])+'.csv', index=False)
+    submission.to_csv(INPUT_PATH + '20180102_'+str(score[0])+'_'+str(score[1])+'_'+str('fscore')+'.csv', index=False)
 
+    break
 
+#print(history_pl.history)
 
 
